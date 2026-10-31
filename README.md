@@ -82,6 +82,61 @@ bresser_weather:
 Die diagnostische Home-Assistant-Entität `sensor_id` kann unabhängig davon
 aktiviert bleiben.
 
+## Eigene Station und Umgebung
+
+Empfängt das Board mehrere Stationen, trennt `preferred_sensor_id` die eigene
+Station von allen anderen. Die normalen Sensoren zeigen dann nur noch die eigene
+Station, `neighbors` den Mittelwert aller übrigen:
+
+```yaml
+bresser_weather:
+  preferred_sensor_id: 0x00003717
+  max_sensors: 8
+  stations:
+    name: Empfangene Stationen
+  temperature:
+    name: Außentemperatur
+  neighbors:
+    timeout: 15min
+    temperature:
+      name: Umgebung Temperatur
+    wind_direction:
+      name: Umgebung Windrichtung
+    rain:
+      name: Umgebung Regenmenge
+    station_count:
+      name: Umgebung Stationen
+```
+
+`neighbors` kennt dieselben Messwerte wie die normalen Sensoren außer `rssi`,
+`battery_low` und `sensor_id`. Eine Station ohne Paket innerhalb von `timeout`
+fällt aus dem Mittelwert. `stations` listet alle aktiven Stationen mit RSSI; so
+lässt sich die eigene ID finden. `max_sensors` begrenzt die Anzahl dieser
+Stationen, bei Überlauf weicht die Station mit dem ältesten Paket.
+
+Die Windrichtung wird als Kreismittel berechnet. Die Regenmenge der Umgebung ist
+kein Mittel der Zählerstände, sondern summiert den mittleren Zuwachs seit dem
+Start des Geräts. `preferred_sensor_id` und `filter_sensor_id` schließen sich aus.
+
+## Beispiel: LILYGO LoRa32 mit OLED
+
+[`examples/lilygo-lora32-oled.yaml`](examples/lilygo-lora32-oled.yaml) zeigt die
+eigene Station und den Mittelwert der Umgebung auf dem 0,96-Zoll-Display. Vor dem
+ersten Start `preferred_sensor_id` durch die eigene ID ersetzen. Die Seiten wechseln
+alle 5 Sekunden. Icons stammen aus Material Design Icons. Die Kopfzeile zeigt das Alter des letzten eigenen Pakets, auf der
+Umgebungsseite die Anzahl der gemittelten Stationen. Fehlende Werte erscheinen als `--`.
+
+| Klima | Wind | Regen und Licht |
+| --- | --- | --- |
+| ![Seite Klima](docs/oled/klima.png) | ![Seite Wind](docs/oled/wind.png) | ![Seite Regen und Licht](docs/oled/regen-licht.png) |
+
+| Umgebung | Status |
+| --- | --- |
+| ![Seite Umgebung](docs/oled/umgebung.png) | ![Seite Status](docs/oled/status.png) |
+
+Die Bilder sind mit Beispielwerten gerendert, keine Fotos. Neu erzeugen:
+`python docs/render_oled_pages.py Roboto-Regular.ttf materialdesignicons-webfont.ttf docs/oled`
+
 ## Radio und Pins
 
 Die Pinbezeichnungen `irq` und `gpio` folgen den beiden Signalleitungen, die
@@ -103,13 +158,14 @@ Weitere Optionen unter `bresser_weather`:
 | Option | Standard | Bedeutung |
 | --- | --- | --- |
 | `radio_type` | `sx1276` | Verwendeter Funkchip |
-| `max_sensors` | `4` | Anzahl gleichzeitig verwalteter Sensoren, 1 bis 32 |
+| `max_sensors` | `4` | Anzahl gleichzeitig verwalteter Stationen, 1 bis 32 |
 | `frequency_offset` | `0.0` | Korrektur zur Basisfrequenz 868,3 MHz |
 | `spi_host` | `spi2` | ESP-IDF SPI-Host; `spi3` nur auf geeigneten ESP32-Varianten |
 | `spi_clock` | `2000000` | SPI-Takt in Hz |
 | `tcxo_voltage` | – | TCXO-Spannung für SX1262/LR1121 |
 | `dio2_as_rf_switch` | `false` | SX1262 DIO2 als internen RF-Schalter verwenden |
 | `filter_sensor_id` | – | Optionaler Filter als 32-Bit-ID |
+| `preferred_sensor_id` | – | ID der eigenen Station, siehe oben |
 | `log_sensor_id` | `true` | Empfangene IDs protokollieren |
 
 Die korrekten Pins sowie TCXO- und RF-Schalter-Einstellungen müssen dem

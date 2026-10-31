@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_TIMEOUT,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
@@ -39,6 +40,10 @@ CONF_RSSI = "rssi"
 CONF_BATTERY_LOW = "battery_low"
 CONF_SENSOR_ID = "sensor_id"
 CONF_FILTER_SENSOR_ID = "filter_sensor_id"
+CONF_PREFERRED_SENSOR_ID = "preferred_sensor_id"
+CONF_NEIGHBORS = "neighbors"
+CONF_STATION_COUNT = "station_count"
+CONF_STATIONS = "stations"
 CONF_FREQUENCY_OFFSET = "frequency_offset"
 CONF_LOG_SENSOR_ID = "log_sensor_id"
 CONF_RADIO_TYPE = "radio_type"
@@ -101,7 +106,56 @@ PIN_SCHEMA = cv.All(
     _validate_pins,
 )
 
-CONFIG_SCHEMA = cv.Schema(
+WEATHER_SENSOR_SCHEMAS = {
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+        unit_of_measurement=UNIT_PERCENT,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_HUMIDITY,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_WIND_GUST): sensor.sensor_schema(
+        unit_of_measurement=UNIT_METER_PER_SECOND,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_WIND_SPEED,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
+        unit_of_measurement=UNIT_METER_PER_SECOND,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_WIND_SPEED,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_WIND_DIRECTION): sensor.sensor_schema(
+        unit_of_measurement=UNIT_DEGREES,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_RAIN): sensor.sensor_schema(
+        unit_of_measurement=UNIT_MILLIMETER,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_PRECIPITATION,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    ),
+    cv.Optional(CONF_UV): sensor.sensor_schema(
+        unit_of_measurement=UNIT_UV_INDEX,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
+        unit_of_measurement=UNIT_LUX,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_ILLUMINANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+}
+
+CONFIG_SCHEMA = cv.All(cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BresserWeatherComponent),
         cv.Required(CONF_PINS): PIN_SCHEMA,
@@ -116,56 +170,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TCXO_VOLTAGE): cv.float_range(min=0.0, max=3.3),
         cv.Optional(CONF_DIO2_AS_RF_SWITCH, default=False): cv.boolean,
         cv.Optional(CONF_FILTER_SENSOR_ID): cv.hex_uint32_t,
+        cv.Optional(CONF_PREFERRED_SENSOR_ID): cv.hex_uint32_t,
         cv.Optional(CONF_LOG_SENSOR_ID, default=True): cv.boolean,
         cv.Optional(CONF_FREQUENCY_OFFSET, default=0.0): cv.float_range(
             min=-1.0, max=1.0
         ),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_WIND_GUST): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER_PER_SECOND,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_WIND_SPEED,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER_PER_SECOND,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_WIND_SPEED,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_WIND_DIRECTION): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_RAIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_MILLIMETER,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_PRECIPITATION,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
-        ),
-        cv.Optional(CONF_UV): sensor.sensor_schema(
-            unit_of_measurement=UNIT_UV_INDEX,
-            accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_LUX,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        **WEATHER_SENSOR_SCHEMAS,
         cv.Optional(CONF_RSSI): sensor.sensor_schema(
             unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
             accuracy_decimals=1,
@@ -179,8 +189,23 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SENSOR_ID): text_sensor.text_sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
+        cv.Optional(CONF_STATIONS): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+        cv.Optional(CONF_NEIGHBORS, default={}): cv.Schema(
+            {
+                cv.Optional(
+                    CONF_TIMEOUT, default="15min"
+                ): cv.positive_time_period_milliseconds,
+                **WEATHER_SENSOR_SCHEMAS,
+                cv.Optional(CONF_STATION_COUNT): sensor.sensor_schema(
+                    accuracy_decimals=0,
+                    state_class=STATE_CLASS_MEASUREMENT,
+                ),
+            }
+        ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA), cv.has_at_most_one_key(CONF_FILTER_SENSOR_ID, CONF_PREFERRED_SENSOR_ID))
 
 
 async def to_code(config):
@@ -193,6 +218,8 @@ async def to_code(config):
 
     if CONF_FILTER_SENSOR_ID in config:
         cg.add(var.set_filter_sensor_id(config[CONF_FILTER_SENSOR_ID]))
+    if CONF_PREFERRED_SENSOR_ID in config:
+        cg.add(var.set_preferred_sensor_id(config[CONF_PREFERRED_SENSOR_ID]))
 
     sensor_setters = {
         CONF_TEMPERATURE: var.set_temperature_sensor,
@@ -217,6 +244,28 @@ async def to_code(config):
     if CONF_SENSOR_ID in config:
         sens = await text_sensor.new_text_sensor(config[CONF_SENSOR_ID])
         cg.add(var.set_sensor_id_text_sensor(sens))
+
+    if CONF_STATIONS in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_STATIONS])
+        cg.add(var.set_stations_text_sensor(sens))
+
+    neighbors = config[CONF_NEIGHBORS]
+    cg.add(var.set_station_timeout(neighbors[CONF_TIMEOUT]))
+    neighbor_setters = {
+        CONF_TEMPERATURE: var.set_neighbor_temperature_sensor,
+        CONF_HUMIDITY: var.set_neighbor_humidity_sensor,
+        CONF_WIND_GUST: var.set_neighbor_wind_gust_sensor,
+        CONF_WIND_SPEED: var.set_neighbor_wind_speed_sensor,
+        CONF_WIND_DIRECTION: var.set_neighbor_wind_direction_sensor,
+        CONF_RAIN: var.set_neighbor_rain_sensor,
+        CONF_UV: var.set_neighbor_uv_sensor,
+        CONF_ILLUMINANCE: var.set_neighbor_illuminance_sensor,
+        CONF_STATION_COUNT: var.set_neighbor_count_sensor,
+    }
+    for key, setter in neighbor_setters.items():
+        if key in neighbors:
+            sens = await sensor.new_sensor(neighbors[key])
+            cg.add(setter(sens))
 
     # Keep the receiver decoder in this ESPHome package. Its library.json also
     # declares RadioLib explicitly; this is required by ESPHome's ESP-IDF based

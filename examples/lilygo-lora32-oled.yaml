@@ -1,0 +1,307 @@
+# LILYGO LoRa32 868 MHz (T3 V1.6.x) with SX1276 and 0.96 inch SSD1306 OLED.
+# Shows the own station and the mean of all other stations on the display.
+# Page images: docs/oled, description: README.md.
+
+esphome:
+  name: bresser-lilygo-oled
+  friendly_name: Bresser LilyGO OLED
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ap:
+    ssid: Bresser LilyGO Setup
+    password: !secret fallback_ap_password
+
+captive_portal:
+
+improv_serial:
+
+
+external_components:
+  - source: github://charlyschulte/bresser-esphome@main
+    components: [bresser_weather]
+    refresh: 0s
+
+bresser_weather:
+  radio_type: sx1276
+  # Replace with the own station ID from entity "Empfangene Stationen".
+  preferred_sensor_id: 0x00001234
+  max_sensors: 8
+  pins:
+    sck: 5
+    miso: 19
+    mosi: 27
+    cs: 18
+    # Tested with 14. The LilyGO pin map of the T3 V1.6 lists 23.
+    reset: 14
+    irq: 26
+    gpio: 33
+  log_sensor_id: true
+
+  temperature:
+    id: outdoor_temperature
+    name: Aussentemperatur
+  humidity:
+    id: outdoor_humidity
+    name: Luftfeuchtigkeit
+  wind_gust:
+    id: outdoor_wind_gust
+    name: Windboe
+  wind_speed:
+    id: outdoor_wind_speed
+    name: Windgeschwindigkeit
+  wind_direction:
+    id: outdoor_wind_direction
+    name: Windrichtung
+    icon: mdi:compass-outline
+  rain:
+    id: outdoor_rain
+    name: Regenmenge gesamt
+  uv:
+    id: outdoor_uv
+    name: UV-Index
+    icon: mdi:weather-sunny-alert
+  illuminance:
+    id: outdoor_illuminance
+    name: Beleuchtungsstaerke
+  rssi:
+    id: outdoor_rssi
+    name: Funksignal Wetterstation
+    # The component publishes RSSI with every received packet.
+    on_value:
+      - lambda: id(last_packet_ms) = millis();
+  battery_low:
+    id: outdoor_battery_low
+    name: Batterie Wetterstation schwach
+  sensor_id:
+    id: outdoor_sensor_id
+    name: Sensor-ID
+    icon: mdi:identifier
+  stations:
+    name: Empfangene Stationen
+    icon: mdi:format-list-bulleted
+
+  neighbors:
+    timeout: 15min
+    temperature:
+      id: neighbor_temperature
+      name: Umgebung Temperatur
+    humidity:
+      id: neighbor_humidity
+      name: Umgebung Luftfeuchtigkeit
+    wind_gust:
+      name: Umgebung Windboe
+    wind_speed:
+      id: neighbor_wind_speed
+      name: Umgebung Windgeschwindigkeit
+    wind_direction:
+      name: Umgebung Windrichtung
+      icon: mdi:compass-outline
+    rain:
+      name: Umgebung Regenmenge
+    uv:
+      name: Umgebung UV-Index
+      icon: mdi:weather-sunny-alert
+    illuminance:
+      name: Umgebung Beleuchtungsstaerke
+    station_count:
+      id: neighbor_count
+      name: Umgebung Stationen
+      icon: mdi:map-marker-radius
+
+sensor:
+  - platform: template
+    name: Abweichung Temperatur zur Umgebung
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 60s
+    lambda: return id(outdoor_temperature).state - id(neighbor_temperature).state;
+
+  - platform: wifi_signal
+    id: wlan_signal
+    name: WLAN Signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: Laufzeit
+    update_interval: 60s
+    entity_category: diagnostic
+
+button:
+  - platform: restart
+    name: Neustart
+    entity_category: diagnostic
+
+globals:
+  - id: last_packet_ms
+    type: uint32_t
+    initial_value: "0"
+  - id: oled_page
+    type: uint8_t
+    initial_value: "0"
+
+i2c:
+  sda: 21
+  scl: 22
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 13
+    glyphs: &oled_glyphs " !%&+-./0123456789:?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°äöüÄÖÜß"
+  - file: "gfonts://Roboto"
+    id: font_big
+    size: 24
+    glyphs: *oled_glyphs
+  # Material Design Icons. Code points must match the \U literals in the lambda.
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf"
+    id: icons_small
+    size: 14
+    glyphs: &oled_icons
+      - "\U000F050F" # thermometer
+      - "\U000F058E" # water-percent
+      - "\U000F059D" # weather-windy
+      - "\U000F018C" # compass-outline
+      - "\U000F0596" # weather-pouring
+      - "\U000F0F37" # weather-sunny-alert
+      - "\U000F00DF" # brightness-6
+      - "\U000F043B" # radio-tower
+      - "\U000F05A9" # wifi
+      - "\U000F0079" # battery
+      - "\U000F0083" # battery-alert
+      - "\U000F0091" # battery-unknown
+      - "\U000F0150" # clock-outline
+      - "\U000F0352" # map-marker-radius
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf"
+    id: icons_big
+    size: 24
+    glyphs:
+      - "\U000F050F" # thermometer
+      - "\U000F059D" # weather-windy
+
+display:
+  - platform: ssd1306_i2c
+    id: oled
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 1s
+    lambda: |-
+      static const char *const ICON_THERMOMETER = "\U000F050F";
+      static const char *const ICON_HUMIDITY = "\U000F058E";
+      static const char *const ICON_WIND = "\U000F059D";
+      static const char *const TITLES[] = {"Klima", "Wind", "Regen & Licht", "Umgebung", "Status"};
+      const bool has_packet = id(last_packet_ms) != 0;
+
+      // Print an icon and a label on the left and a formatted value on the right.
+      auto row = [&](int y, const char *icon, const char *label, float value, const char *format) {
+        it.print(0, y, id(icons_small), icon);
+        it.print(17, y, id(font_small), label);
+        if (std::isnan(value)) {
+          it.print(127, y, id(font_small), TextAlign::TOP_RIGHT, "--");
+        } else {
+          it.printf(127, y, id(font_small), TextAlign::TOP_RIGHT, format, value);
+        }
+      };
+      auto big = [&](const char *icon, float value, const char *format) {
+        it.print(0, 18, id(icons_big), icon);
+        if (std::isnan(value)) {
+          it.print(127, 16, id(font_big), TextAlign::TOP_RIGHT, "--");
+        } else {
+          it.printf(127, 16, id(font_big), TextAlign::TOP_RIGHT, format, value);
+        }
+      };
+
+      // The header shows the age of the last own packet, so stale values are visible.
+      char status[12] = "--";
+      const char *status_icon = "\U000F0150";
+      if (id(oled_page) == 3) {
+        const float stations = id(neighbor_count).state;
+        snprintf(status, sizeof(status), "%.0f", std::isnan(stations) ? 0.0f : stations);
+        status_icon = "\U000F0352";
+      } else if (has_packet) {
+        const uint32_t age = (millis() - id(last_packet_ms)) / 1000;
+        if (age < 60) {
+          snprintf(status, sizeof(status), "%us", (unsigned) age);
+        } else if (age < 3600) {
+          snprintf(status, sizeof(status), "%um", (unsigned) (age / 60));
+        } else {
+          snprintf(status, sizeof(status), "%uh", (unsigned) (age / 3600));
+        }
+      }
+      int status_x, status_y, status_width, status_height;
+      it.get_text_bounds(127, 0, status, id(font_small), TextAlign::TOP_RIGHT, &status_x, &status_y, &status_width,
+                         &status_height);
+      it.print(0, 0, id(font_small), TITLES[id(oled_page)]);
+      it.print(127, 0, id(font_small), TextAlign::TOP_RIGHT, status);
+      it.print(status_x - 15, 0, id(icons_small), status_icon);
+      it.horizontal_line(0, 15, 128);
+
+      switch (id(oled_page)) {
+        case 0:
+          big(ICON_THERMOMETER, id(outdoor_temperature).state, "%.1f °C");
+          row(49, ICON_HUMIDITY, "Feuchte", id(outdoor_humidity).state, "%.0f %%");
+          break;
+        case 1: {
+          big(ICON_WIND, id(outdoor_wind_speed).state, "%.1f m/s");
+          it.print(0, 49, id(icons_small), "\U000F018C");
+          const float direction = id(outdoor_wind_direction).state;
+          if (std::isnan(direction)) {
+            it.print(17, 49, id(font_small), "--");
+          } else {
+            static const char *const COMPASS[] = {"N", "NO", "O", "SO", "S", "SW", "W", "NW"};
+            const int sector = static_cast<int>((direction + 22.5f) / 45.0f) % 8;
+            it.printf(17, 49, id(font_small), "%s %.0f°", COMPASS[sector], direction);
+          }
+          const float gust = id(outdoor_wind_gust).state;
+          if (std::isnan(gust)) {
+            it.print(127, 49, id(font_small), TextAlign::TOP_RIGHT, "Böe --");
+          } else {
+            it.printf(127, 49, id(font_small), TextAlign::TOP_RIGHT, "Böe %.1f", gust);
+          }
+          break;
+        }
+        case 2:
+          row(17, "\U000F0596", "Regen", id(outdoor_rain).state, "%.1f mm");
+          row(33, "\U000F0F37", "UV-Index", id(outdoor_uv).state, "%.1f");
+          row(49, "\U000F00DF", "Licht", id(outdoor_illuminance).state, "%.0f lx");
+          break;
+        case 3:
+          row(17, ICON_THERMOMETER, "Temp.", id(neighbor_temperature).state, "%.1f °C");
+          row(33, ICON_HUMIDITY, "Feuchte", id(neighbor_humidity).state, "%.0f %%");
+          row(49, ICON_WIND, "Wind", id(neighbor_wind_speed).state, "%.1f m/s");
+          break;
+        default: {
+          row(17, "\U000F043B", "Funk", id(outdoor_rssi).state, "%.0f dBm");
+          row(33, "\U000F05A9", "WLAN", id(wlan_signal).state, "%.0f dBm");
+          const bool known = id(outdoor_battery_low).has_state();
+          const bool low = known && id(outdoor_battery_low).state;
+          it.print(0, 49, id(icons_small), !known ? "\U000F0091" : low ? "\U000F0083" : "\U000F0079");
+          it.print(17, 49, id(font_small), "Batterie");
+          it.print(127, 49, id(font_small), TextAlign::TOP_RIGHT, !known ? "--" : low ? "schwach" : "OK");
+          break;
+        }
+      }
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: id(oled_page) = (id(oled_page) + 1) % 5;
+      - component.update: oled
