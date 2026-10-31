@@ -42,7 +42,20 @@ bresser_weather:
     irq: 26
     gpio: 33
   log_sensor_id: true
+  preferred_sensor_id: 0x00001234
   temperature:
     name: Temperature
+  neighbors:
+    timeout: 10min
+    temperature:
+      name: Neighbor Temperature
+    wind_direction:
+      name: Neighbor Wind Direction
+    rain:
+      name: Neighbor Rain
+    station_count:
+      name: Neighbor Stations
+  stations:
+    name: Stations
   sensor_id:
     name: Sensor ID
