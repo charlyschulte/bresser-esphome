@@ -32,6 +32,8 @@ AUTO_LOAD = ["binary_sensor", "json", "sensor", "text_sensor"]
 CONF_WIND_GUST = "wind_gust"
 CONF_WIND_SPEED = "wind_speed"
 CONF_WIND_DIRECTION = "wind_direction"
+CONF_WIND_DIRECTION_TEXT = "wind_direction_text"
+CONF_SECTORS = "sectors"
 CONF_RAIN = "rain"
 CONF_UV = "uv"
 CONF_ILLUMINANCE = "illuminance"
@@ -149,6 +151,13 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_WIND_DIRECTION_TEXT): text_sensor.text_sensor_schema(
+            icon="mdi:compass-outline",
+        ).extend(
+            {
+                cv.Optional(CONF_SECTORS, default=16): cv.one_of(8, 16, int=True),
+            }
+        ),
         cv.Optional(CONF_RAIN): sensor.sensor_schema(
             unit_of_measurement=UNIT_MILLIMETER,
             accuracy_decimals=1,
@@ -217,6 +226,12 @@ async def to_code(config):
     if CONF_SENSOR_ID in config:
         sens = await text_sensor.new_text_sensor(config[CONF_SENSOR_ID])
         cg.add(var.set_sensor_id_text_sensor(sens))
+
+    if CONF_WIND_DIRECTION_TEXT in config:
+        conf = config[CONF_WIND_DIRECTION_TEXT]
+        sens = await text_sensor.new_text_sensor(conf)
+        cg.add(var.set_wind_direction_text_sensor(sens))
+        cg.add(var.set_wind_direction_sectors(conf[CONF_SECTORS]))
 
     # Keep the receiver decoder in this ESPHome package. Its library.json also
     # declares RadioLib explicitly; this is required by ESPHome's ESP-IDF based

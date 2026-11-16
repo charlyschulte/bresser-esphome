@@ -81,6 +81,9 @@ bresser_weather:
     name: Windgeschwindigkeit
   wind_direction:
     name: Windrichtung
+  wind_direction_text:
+    name: Windrichtung Text
+    sectors: 16
   rain:
     name: Regenmenge gesamt
   uv:

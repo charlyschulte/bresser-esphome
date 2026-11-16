@@ -35,9 +35,14 @@ class BresserWeatherComponent : public Component {
   void set_rssi_sensor(sensor::Sensor *value) { rssi_sensor_ = value; }
   void set_battery_low_sensor(binary_sensor::BinarySensor *value) { battery_low_sensor_ = value; }
   void set_sensor_id_text_sensor(text_sensor::TextSensor *value) { sensor_id_sensor_ = value; }
+  void set_wind_direction_text_sensor(text_sensor::TextSensor *value) {
+    wind_direction_text_sensor_ = value;
+  }
+  void set_wind_direction_sectors(uint8_t value) { wind_direction_sectors_ = value; }
 
  protected:
   void publish_weather_(const WeatherSensor::sensor_t &data);
+  const char *wind_direction_to_text_(float degrees) const;
 
   WeatherSensor receiver_;
   float frequency_offset_{0.0f};
@@ -57,6 +62,8 @@ class BresserWeatherComponent : public Component {
   sensor::Sensor *rssi_sensor_{nullptr};
   binary_sensor::BinarySensor *battery_low_sensor_{nullptr};
   text_sensor::TextSensor *sensor_id_sensor_{nullptr};
+  text_sensor::TextSensor *wind_direction_text_sensor_{nullptr};
+  uint8_t wind_direction_sectors_{16};
 };
 
 }  // namespace esphome::bresser_weather

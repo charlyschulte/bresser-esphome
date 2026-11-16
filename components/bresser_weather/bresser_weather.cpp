@@ -1,10 +1,19 @@
 #include "bresser_weather.h"
 
+#include <cmath>
+
 #include "esphome/core/log.h"
 
 namespace esphome::bresser_weather {
 
 static const char *const TAG = "bresser_weather";
+
+// 16 Himmelsrichtungen im Uhrzeigersinn ab Norden, deutsche Abkuerzungen.
+// Bei 8 Sektoren wird jede zweite Richtung verwendet.
+static const char *const WIND_DIRECTIONS[16] = {
+    "N", "NNO", "NO", "ONO", "O", "OSO", "SO", "SSO",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+};
 
 void BresserWeatherComponent::setup() {
   ESP_LOGI(TAG, "Initialisiere Bresser-Empfaenger bei %.3f MHz",
@@ -39,6 +48,21 @@ void BresserWeatherComponent::dump_config() {
   LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
   LOG_BINARY_SENSOR("  ", "Batterie schwach", this->battery_low_sensor_);
   LOG_TEXT_SENSOR("  ", "Sensor-ID", this->sensor_id_sensor_);
+  LOG_TEXT_SENSOR("  ", "Windrichtung (Text)", this->wind_direction_text_sensor_);
+  if (this->wind_direction_text_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "    Sektoren: %u", this->wind_direction_sectors_);
+  }
+}
+
+const char *BresserWeatherComponent::wind_direction_to_text_(float degrees) const {
+  float normalized = std::fmod(degrees, 360.0f);
+  if (normalized < 0.0f) {
+    normalized += 360.0f;
+  }
+  const uint8_t sectors = this->wind_direction_sectors_ == 8 ? 8 : 16;
+  const float sector_width = 360.0f / sectors;
+  const uint8_t index = static_cast<uint8_t>(normalized / sector_width + 0.5f) % sectors;
+  return WIND_DIRECTIONS[index * (16 / sectors)];
 }
 
 void BresserWeatherComponent::loop() {
@@ -102,6 +126,10 @@ void BresserWeatherComponent::publish_weather_(const WeatherSensor::sensor_t &da
     }
     if (this->wind_direction_sensor_ != nullptr) {
       this->wind_direction_sensor_->publish_state(data.w.wind_direction_deg);
+    }
+    if (this->wind_direction_text_sensor_ != nullptr && !std::isnan(data.w.wind_direction_deg)) {
+      this->wind_direction_text_sensor_->publish_state(
+          this->wind_direction_to_text_(data.w.wind_direction_deg));
     }
   }
   if (data.w.rain_ok && this->rain_sensor_ != nullptr) {
