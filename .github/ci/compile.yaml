@@ -44,5 +44,10 @@ bresser_weather:
   log_sensor_id: true
   temperature:
     name: Temperature
+  wind_direction:
+    name: Wind direction
+  wind_direction_text:
+    name: Wind direction text
+    sectors: 8
   sensor_id:
     name: Sensor ID

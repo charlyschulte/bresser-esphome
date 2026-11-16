@@ -13,9 +13,9 @@ Unterstützte Funkchips:
 
 Der integrierte Decoder unterstützt die Bresser-Wetterprotokolle der
 3-in-1-, 5-in-1-, 6-in-1-, 7-in-1- und 8-in-1-Familien. In Home Assistant
-werden Temperatur, Luftfeuchtigkeit, Wind, Windrichtung, Regen, UV,
-Beleuchtungsstärke, Batteriestatus, Sensor-ID und RSSI bereitgestellt, sofern
-der jeweilige Außensensor diese Werte sendet.
+werden Temperatur, Luftfeuchtigkeit, Wind, Windrichtung (in Grad und optional
+als Himmelsrichtung), Regen, UV, Beleuchtungsstärke, Batteriestatus, Sensor-ID
+und RSSI bereitgestellt, sofern der jeweilige Außensensor diese Werte sendet.
 
 ## Einbindung aus GitHub
 
@@ -60,6 +60,30 @@ bluetooth_proxy:
 
 Die vollständige Konfiguration für ein LILYGO TTGO LoRa32 V1.x/V1.2 mit
 SX1276 befindet sich in [`bresser-el-nino.yaml`](bresser-el-nino.yaml).
+
+## Windrichtung als Himmelsrichtung
+
+Zusätzlich zur Windrichtung in Grad kann die Komponente einen Text-Sensor mit
+der Himmelsrichtung bereitstellen:
+
+```yaml
+bresser_weather:
+  # ...
+  wind_direction_text:
+    name: Windrichtung Text
+    sectors: 16
+```
+
+`sectors` ist optional (Standard `16`) und legt die Auflösung fest:
+
+| `sectors` | Ausgabe |
+| --- | --- |
+| `16` | N, NNO, NO, ONO, O, OSO, SO, SSO, S, SSW, SW, WSW, W, WNW, NW, NNW |
+| `8` | N, NO, O, SO, S, SW, W, NW |
+
+Jede Richtung deckt einen gleich großen Sektor ab, der mittig auf ihr liegt.
+Bei 16 Sektoren steht `N` also für 348,75° bis 11,25°. Der Wert wird zusammen
+mit den übrigen Winddaten bei jedem empfangenen Paket aktualisiert.
 
 ## Sensor-ID ermitteln und filtern
 
